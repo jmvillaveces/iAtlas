@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:neo4j="http://www.springframework.org/schema/data/neo4j"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:batch="http://www.springframework.org/schema/batch"
+	xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+	xsi:schemaLocation="http://www.springframework.org/schema/jdbc http://www.springframework.org/schema/jdbc/spring-jdbc-3.0.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+		http://www.springframework.org/schema/batch http://www.springframework.org/schema/batch/spring-batch-2.1.xsd
+		http://www.springframework.org/schema/data/neo4j http://www.springframework.org/schema/data/neo4j/spring-neo4j.xsd">
+	
+	<import resource="classpath:launch-context.xml" />
+	
+	<!-- Job -->
+	<batch:job id="interactomeJob" job-repository="jobRepository">
+		<batch:step id="int">
+			<batch:tasklet ref="interactomeBuilder"/>
+		</batch:step>
+    </batch:job>
+	
+	<bean id="biBeanIoFactory" class="mpg.biochem.de.interbase.batch.BinaryInteractionIoFactory" />
+	
+	<bean id="interactomeBuilder" class="mpg.biochem.de.interbase.task.InteractomeGeneratorTask" scope="step">
+		<property name="inputResource">
+			<bean class="org.springframework.core.io.FileSystemResource">
+				<constructor-arg>
+					<bean class="java.io.File">
+						<constructor-arg value="#{jobParameters['fileName']}" />
+					</bean>
+				</constructor-arg>
+			</bean>
+		</property>
+		<property name="inputIoFactory" ref="biBeanIoFactory" />
+		<property name="outputIoFactory" ref="biBeanIoFactory" />
+		<property name="path" value="#{jobParameters['path']}" />
+		<property name="organisms" value="#{jobParameters['organisms']}" />
+	</bean>
+</beans>

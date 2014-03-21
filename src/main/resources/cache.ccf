@@ -1,0 +1,17 @@
+jcs.default=DISK_REGION
+jcs.default.cacheattributes=org.apache.jcs.engine.CompositeCacheAttributes
+jcs.default.cacheattributes.MaxObjects=50000
+jcs.default.cacheattributes.MemoryCacheName=org.apache.jcs.engine.memory.lru.LRUMemoryCache
+jcs.default.elementattributes.IsEternal=false
+jcs.default.elementattributes.IdleTime=1800
+jcs.default.elementattributes.IsSpool=true
+jcs.default.elementattributes.IsRemote=true
+jcs.default.elementattributes.IsLateral=true
+
+jcs.auxiliary.DISK_REGION=org.apache.jcs.auxiliary.disk.indexed.IndexedDiskCacheFactory
+jcs.auxiliary.DISK_REGION.attributes=org.apache.jcs.auxiliary.disk.indexed.IndexedDiskCacheAttributes
+jcs.auxiliary.DISK_REGION.attributes.DiskPath=/export/jvillaveces/cache2
+jcs.auxiliary.DISK_REGION.attributes.MaxPurgatorySize=50000
+jcs.auxiliary.DISK_REGION.attributes.MaxKeySize=100000
+jcs.auxiliary.DISK_REGION.attributes.OptimizeAtRemoveCount=300000
+jcs.auxiliary.DISK_REGION.attributes.MaxRecycleBinSize=10000

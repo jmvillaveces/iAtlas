@@ -1,0 +1,252 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+    <title>iAtlas - Protein Interaction Atlas</title>
+    
+    <link type="image/x-icon" href="favicon.ico" rel="icon" />
+    <link type="image/x-icon" href="favicon.ico" rel="shortcut icon" />
+    
+    <link type="text/css" rel="stylesheet" href="iAtlas.css">
+    <link type="text/css" rel="stylesheet" href="css/ui-toolbar.css">
+    
+    <link href='http://fonts.googleapis.com/css?family=Poiret+One' rel='stylesheet' type='text/css'>
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js" ></script>
+    <!-- <script src="//cdnjs.cloudflare.com/ajax/libs/d3/3.3.13/d3.min.js"></script>
+    <script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"></script>
+    
+    <link rel="stylesheet" href="http://ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/themes/smoothness/jquery-ui.min.css" type="text/css" media="all" />-->
+    
+    <!-- Cytoscape -->
+    <!--<script language="JavaScript" type="text/javascript" src="js/cytoscape/2.0.4/cytoscape.min.js"></script>-->
+    
+    <script type="text/javascript" src="cytoscapeweb/js/min/AC_OETags.min.js"></script>
+    <script type="text/javascript" src="cytoscapeweb/js/min/json2.min.js"></script>
+    <script type="text/javascript" src="cytoscapeweb/js/min/cytoscapeweb.min.js"></script>
+    
+    <script language="JavaScript" type="text/javascript" src="js/iAtlas.js"></script>
+    
+    <!-- Biojs -->
+    <!--<script language="JavaScript" type="text/javascript" src="js/Biojs.js"></script>
+    <script language="JavaScript" type="text/javascript" src="js/Biojs.PsicquicGraph.js"></script>-->
+    
+    <!-- Layout -->
+    <script src="js/jquery.layout-latest.min.js" ></script>
+    <link type="text/css" rel="stylesheet" href="css/layout-default-latest.css">
+    
+</head>
+<body>
+    <div class="ot">
+        <div style="height:20px;width:100%;"></div>
+        <div id="search" class="qbox" style="top:0px;margin: 0 20px;display:none">
+            <div class="logosmall"><span>iAtlas</span></div>
+            <div class="input" style="margin-left: 200px;">
+                <div class="sbox">
+                    <input id="q1" name="q1" value="" class="query" value="" autocomplete="off" />
+                </div>
+                <input id="smallbutt" type="submit" value="Go" class="cssButton sbut">
+            </div>
+        </div>
+        <div class="wrapper" id="wrapper">
+            <div id="qbox">
+                <div class="qbox">
+                    <div class="logo"><span>iAtlas</span>  <p id="intmsg" class="grey"></p></div>
+                    <div class="input">
+                            
+                            <div class="sbox">
+                                <input id="q" name="q" value="" class="query" value="" autocomplete="off" />
+                            </div>
+                            <input id="sbut" type="submit" value="Go" class="cssButton sbut">
+                            <div class="lbox">
+                                <a id="explink" href="#" class="link grey" target="_top">example</a> &middot;
+                                <a id="advlink" href="#" class="link grey" target="_top">advanced options</a>
+                                <div id="advbox" class="slide">Advanced options comming soon :)</div>
+                            </div>
+                    </div>
+                </div>
+            </div>
+            <div id="gbox" class="gbox">
+                <div id="center" class="pane ui-layout-center">
+                </div>
+                <div id="right" class="pane ui-layout-east">
+                
+                    <!--<div>
+                        <ul class="ui-toolbar">
+                            <li class="ui-button grey-gradient">
+                                <a href="#new">
+                                <span class="ui-button-content">
+                                    Organism
+                                </span>
+                                </a>
+                            </li>
+                            <li class="ui-button grey-gradient">
+                                <a href="#new">
+                                <span class="ui-button-content">
+                                    Proteins
+                                </span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>-->
+                    <div class="sidelist">
+                        <ul id="orgs">    
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <a href="#" class="link grey" target="_top">Link1</a>&middot;
+            <a href="#" class="link grey" target="_top">Link2</a>&middot;
+            <a href="#" class="link grey" target="_top">Link3</a>
+            <span class="grey" style="padding-left:10px;">&#169; 2014 Max Planck Institute of Biochemistry</span>
+        </div>
+    </div>
+</body>
+</html>
+<script>
+$(document).ready(function() {
+    
+    //Get interactions count
+    ATLAS.getInteractionCount(function( data ) {
+        var parts = data.split(".");
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        data = parts.join(".");
+        $('#intmsg').text(data + ' unique interactions indexed');
+    });
+    
+    //Set focus on query
+    $("#q").focus();
+    
+    //Example Link
+    $('#explink').click(function() {
+        $("#q").val("P49959 P25454 Q54KD8 O74773 Q8IV36 Q96B01 Q54CS9 P52701 Q9CXE6 Q7T6Y0 Q682D3");
+        return false;
+    });
+    
+    //Advanced Link
+    $('#advbox').hide();
+    $('#advlink').click(function() {
+        $('#advbox').slideToggle(400);
+        return false;
+    });
+    
+    //Init layout
+    $('#gbox').layout({
+        onopen_end: function () {
+            window.cy.forceRender();
+        },
+        onclose_end: function () {
+            window.cy.forceRender();
+        },
+        east:{
+            size:300,
+            resizable:true,
+            slidable:true
+        }
+    });
+    $('#gbox').hide();
+    
+    //Button Click
+    $('#sbut').click(function(){
+        $('#qbox').fadeOut();
+        
+        $('#q1').val($("#q").val());
+        
+        var query_elements = $("#q").val().split(' ');
+        
+        var query = 'id:'+query_elements[0];
+        if(query_elements.length > 1){
+            var tmp = query_elements.join(' OR ');
+            query = 'id:('+tmp+')'//'idA:('+tmp+') AND idB:('+tmp+')';
+        }
+        
+        ATLAS.query(query);
+        /*ATLAS.query(query, function(){
+            
+            //jQuery('#orgs').append(str);
+            
+            var network_json = {
+                data: {
+                    nodes: ATLAS.getNodes(),
+                    edges: ATLAS.getEdges()
+                }
+            }
+            
+            network_json.dataSchema = {
+                nodes: [{ name: "organism", type: "string" }, { name: "label", type: "string" } , { name:'altIds', type:'string'}],   
+                edges: [ { name: "label", type: "string" },{ name: "interscore", type: "number" }]
+            };
+            
+            
+            // initialization options
+            var options = {
+                // where you have the Cytoscape Web SWF
+                swfPath: "cytoscapeweb/swf/CytoscapeWeb",
+                // where you have the Flash installer SWF
+                flashInstallerPath: "cytoscapeweb/swf/playerProductInstall"
+            };
+            
+            // init and draw
+            var vis = new org.cytoscapeweb.Visualization('center', options);
+            
+            
+            // Create the mapper:
+            var colorMapper = {
+                    attrName: "organism",
+                    entries: []
+            };
+            
+           
+            var organisms = ATLAS.getOrganisms();
+            var content = '';
+            jQuery.each(organisms, function(i,o) {
+                colorMapper.entries.push({attrValue:o.id, value: ATLAS.colors[i]});
+                content += '<li><input type="checkbox" value="'+o.id+'" checked><div style="background-color:'+ATLAS.colors[i]+';height:15px;width:15px;float:right"></div> '+o.name+'<p class="grey">taxId: '+o.id+' - nodes: '+o.nodes+'</p></li>';
+            });
+            $('#orgs').append(content);
+            
+            // visual style we will use
+            var visual_style = {
+                nodes: {
+                    shape: "ELLIPSE",
+                    color: { discreteMapper: colorMapper },
+                    opacity: 0.8,
+                    size: 40,
+                    tooltipText: "<b>${organism}</b>",
+                    borderWidth:0
+                },
+                edges: {
+                    width:1,
+                    opacity:0.6
+                }
+            };
+            vis.ready(function(){
+                
+                $('#orgs input').click(function(){
+                    var arr = $('#orgs input:checked').map(function(){
+                        return $(this).val();
+                    }).get();
+                    
+                    vis.filter("nodes", function(n) {
+                        for(i in arr)
+                            if(arr[i] == n.data.organism)
+                                return true;
+                        
+                        return false;
+                        
+                    }, true);
+                   
+                });
+                
+            });
+            
+            vis.draw({ visualStyle:visual_style, network: network_json });
+            
+        });*/
+                
+        $('#gbox').show();
+        $('#search').show();
+    });
+});
+</script>

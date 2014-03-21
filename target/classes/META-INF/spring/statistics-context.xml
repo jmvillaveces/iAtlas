@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:neo4j="http://www.springframework.org/schema/data/neo4j"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:batch="http://www.springframework.org/schema/batch"
+	xsi:schemaLocation="
+	http://www.springframework.org/schema/batch http://www.springframework.org/schema/batch/spring-batch-2.1.xsd
+	http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+	http://www.springframework.org/schema/data/neo4j http://www.springframework.org/schema/data/neo4j/spring-neo4j.xsd">
+	
+	<!-- Properties -->
+	<bean class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+    	<property name="locations" value="classpath:/InterBase.properties"/>
+	</bean>
+	
+	<!-- XML Marshalling -->
+	<bean id="castorMarshaller" class="org.springframework.oxm.castor.CastorMarshaller" >
+		<property name="mappingLocation" value="classpath:mapping.xml" />
+	</bean>
+	<bean id="XMLConverter" class="org.mpi.age.interbase.util.XMLConverter">
+		<property name="marshaller" ref="castorMarshaller" />
+		<property name="unmarshaller" ref="castorMarshaller" />
+	</bean>
+	
+	<!-- ServiceHandler -->
+	<bean id="serviceHandler" class="org.mpi.age.interbase.model.ServiceHandler" init-method="initIt" destroy-method="save">
+		<property name="XMLConverter" ref="XMLConverter" />
+		<property name="path" value="${xml.info.path}" />
+	</bean>
+</beans>

@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:neo4j="http://www.springframework.org/schema/data/neo4j"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:batch="http://www.springframework.org/schema/batch"
+	xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+	xsi:schemaLocation="http://www.springframework.org/schema/jdbc http://www.springframework.org/schema/jdbc/spring-jdbc-3.0.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+		http://www.springframework.org/schema/batch http://www.springframework.org/schema/batch/spring-batch-2.1.xsd
+		http://www.springframework.org/schema/data/neo4j http://www.springframework.org/schema/data/neo4j/spring-neo4j.xsd">
+	
+	<!-- XML Marshalling -->
+	
+	<bean id="castorMarshaller" class="org.springframework.oxm.castor.CastorMarshaller" >
+		<property name="mappingLocation" value="classpath:mapping.xml" />
+	</bean>
+	
+	<bean id="XMLConverter" class="org.mpi.age.interbase.util.XMLConverter">
+		<property name="marshaller" ref="castorMarshaller" />
+		<property name="unmarshaller" ref="castorMarshaller" />
+	</bean>
+	
+	<!-- ServiceHandler -->
+	<bean id="serviceHandler" class="org.mpi.age.interbase.model.ServiceHandler" init-method="initIt" destroy-method="save">
+		<property name="XMLConverter" ref="XMLConverter" />
+		<property name="path" value="${xml.info.path}" />
+	</bean>
+	
+	<!-- PSICQUIC registry client -->
+	<bean id="registryClient" class="org.hupo.psi.mi.psicquic.registry.client.registry.DefaultPsicquicRegistryClient"/>
+	
+	<!-- Executor service -->
+	<bean id="taskExecutor" class="org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor">
+		<property name="corePoolSize" value="10" />
+		<property name="maxPoolSize" value="20" />
+		<property name="queueCapacity" value="50" />
+	</bean>
+	
+	<!-- Automatic task run -->
+	<bean id="runMeTask" class="org.mpi.age.interbase.task.TestRunTask">
+		<constructor-arg name="jobLauncher" ref="jobLauncher"/>
+        <constructor-arg name="job" ref="clusterJob"/>
+	</bean>
+	
+	<bean id="schedulerTask" class="org.springframework.scheduling.timer.MethodInvokingTimerTaskFactoryBean">
+		<property name="targetObject" ref="runMeTask" />
+		<property name="targetMethod" value="start" />
+	</bean>
+	
+	<bean id="timerTask" class="org.springframework.scheduling.timer.ScheduledTimerTask">
+		<property name="timerTask" ref="schedulerTask" />
+		<property name="delay" value="5000" />
+		<!-- One week -->
+		<property name="period" value="604800000" />
+	</bean>
+
+	<bean class="org.springframework.scheduling.timer.TimerFactoryBean">
+		<property name="scheduledTimerTasks">
+			<list>
+				<ref local="timerTask" />
+			</list>
+		</property>
+	</bean>
+	
+	<!-- Job config -->
+	<bean id="jobLauncher" class="org.springframework.batch.core.launch.support.SimpleJobLauncher">
+		<property name="jobRepository" ref="jobRepository"/>
+		<property name="taskExecutor" ref="taskExecutor"/>
+	</bean>
+
+   <bean id="jobRepository" class="org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean"/>
+
+	<bean id="transactionManager" lazy-init="true" class="org.springframework.jdbc.datasource.DataSourceTransactionManager"> 
+    	<property name="dataSource" ref="dataSource" />
+	</bean>
+	
+	<jdbc:embedded-database id="dataSource" type="DERBY"/>
+	
+	<!-- Job -->
+	<batch:job id="clusterJob" job-repository="jobRepository">
+       <batch:split id="split1" task-executor="taskExecutor" next="decision">
+	       <batch:flow>
+		       <batch:step id="fetchInt">
+		           <batch:tasklet ref="fetchInteractions"/>
+		       </batch:step>
+	       </batch:flow>
+	       <batch:flow>
+		       <batch:step id="downloadMappings">
+		           <batch:tasklet ref="mapping"/>
+		       </batch:step>
+	       </batch:flow>
+       </batch:split>
+       <batch:step id="cluster" next="cluster2">
+            <batch:tasklet>
+                <batch:chunk reader="multiReader" writer="ClusterWriter" commit-interval="50000"></batch:chunk>
+            </batch:tasklet>
+       </batch:step> 
+       <batch:step id="cluster2" next="statistics">
+            <batch:tasklet>
+                <batch:chunk reader="flatFileItemReader"  writer="ClusterWriter2" commit-interval="50000"></batch:chunk>
+            </batch:tasklet>
+       </batch:step>
+       <batch:step id="statistics" next="DB">
+            <batch:tasklet>
+                <batch:chunk reader="clusterflatFileItemReader" writer="CountWriter" commit-interval="50000"></batch:chunk>
+            </batch:tasklet>
+       </batch:step>
+       <batch:step id="DB">
+            <batch:tasklet>
+                <batch:chunk reader="clusterflatFileItemReader" writer="PSIMINeo4jWriter" commit-interval="40000"></batch:chunk>
+            </batch:tasklet>
+       </batch:step>
+       <!--<batch:step id="MITABW" next="Mapping2Neo4jReaderStep">
+            <batch:tasklet>
+                <batch:chunk reader="multiReader" writer="MITABWriter" commit-interval="10000"></batch:chunk>
+            </batch:tasklet>
+       </batch:step>
+       <batch:step id="Mapping2Neo4jReaderStep" next="Merge">
+            <batch:tasklet>
+                <batch:chunk reader="gzipItemReader" writer="mappingNeo4jWriter" commit-interval="40000"></batch:chunk>
+       		</batch:tasklet>
+       </batch:step>
+       <batch:step id="Merge">
+           <batch:tasklet ref="mergeInteractions"/>
+       </batch:step>
+        <batch:step id="WriteIds">
+            <batch:tasklet>
+                <batch:chunk reader="nodeReader" writer="flatFileItemWriter" commit-interval="10000"></batch:chunk>
+            </batch:tasklet>
+       </batch:step> -->
+       <!-- <batch:step id="Mapping2Neo4jReaderStep" next="PSIMI2Neo4jReaderStep">
+            <batch:tasklet>
+                <batch:chunk reader="gzipItemReader" writer="mappingNeo4jWriter" commit-interval="40000"></batch:chunk>
+       		</batch:tasklet>
+       </batch:step>
+       <batch:step id="PSIMI2Neo4jReaderStep" next="WriteIds">
+            <batch:tasklet>
+                <batch:chunk reader="multiReader" writer="PSIMINeo4jWriter" commit-interval="10000"></batch:chunk>
+            </batch:tasklet>
+       </batch:step>
+       <batch:step id="WriteIds">
+            <batch:tasklet>
+                <batch:chunk reader="nodeReader" writer="flatFileItemWriter" commit-interval="10000"></batch:chunk>
+            </batch:tasklet>
+       </batch:step>
+        -->
+    </batch:job>
+    
+    <!-- Tasklets -->
+    <bean id="fetchInteractions" class="org.mpi.age.interbase.task.FetchInteractionsTasklet">
+        <constructor-arg name="registryClient" ref="registryClient"/>
+        <constructor-arg name="taskExecutor" ref="taskExecutor" />
+		<constructor-arg name="serviceHandler" ref="serviceHandler"/>
+    </bean>
+    
+    <bean id="mapping" class="org.mpi.age.interbase.task.DownloadMappingsTasklet">
+    </bean>
+   
+    <!-- PICRCache -->
+    <bean id="picrCache" class="org.mpi.age.interbase.util.PICRCache">
+	</bean>
+    
+    <!-- Neo4j -->
+    <bean id="configuration" class="org.neo4j.helpers.collection.MapUtil" factory-method="load">
+	   <constructor-arg value="neo4j.config.properties"/>
+	</bean>
+	
+	<!-- Readers & Writers -->
+	
+	<!-- Flat File Reader -->
+	<bean id="flatFileItemReader" class="org.springframework.batch.item.file.FlatFileItemReader" scope="step">
+		<!-- <property name="resource" value="file:#{jobParameters['input.file']}" /> -->
+		<property name="resource" value="file:${path}${cluster.first}" />
+		<property name="lineMapper">
+            <bean class="org.mpi.age.interbase.batch.PSIMITabLineMapper"></bean>
+        </property>
+	</bean>
+	
+	<bean id="clusterflatFileItemReader" class="org.springframework.batch.item.file.FlatFileItemReader" scope="step">
+		<!-- <property name="resource" value="file:#{jobParameters['input.file']}" /> -->
+		<property name="resource" value="file:${path}${cluster.seccond}" />
+		<property name="lineMapper">
+            <bean class="org.mpi.age.interbase.batch.PSIMITabLineMapper"></bean>
+        </property>
+	</bean>
+	
+	<!-- Multi Reader -->
+	<bean id="multiReader" class="org.springframework.batch.item.file.MultiResourceItemReader">
+		<property name="resources" value="file:${path}*.tab" />
+		<property name="strict" value="true"/>
+		<property name="delegate">
+			<bean class="org.springframework.batch.item.file.FlatFileItemReader">
+				<property name="lineMapper">
+        		    <bean class="org.mpi.age.interbase.batch.PSIMITabLineMapper"></bean>
+        		</property>
+			</bean>
+		</property>
+	</bean>
+	
+	<!-- PSIMINeo4j Writer -->
+	<bean id="PSIMINeo4jWriter" class="org.mpi.age.interbase.batch.PSIMINeo4jItemWriter" scope="step">
+		<constructor-arg name="dbPath" value="#{jobParameters['db.path']}"/>
+		<constructor-arg name="dbConfig" ref="configuration"/>
+	</bean>
+	
+	<!-- count Writer -->
+	<bean id="CountWriter" class="org.mpi.age.interbase.batch.CountWriter" scope="step">
+	</bean>
+	
+	<!-- cluster Writer -->
+	<bean id="ClusterWriter" class="org.mpi.age.interbase.batch.ClusterWriter" scope="step">
+		<constructor-arg name="filePath" value="${path}${cluster.first}"/>
+		<constructor-arg name="taskExecutor" ref="taskExecutor"/>
+	</bean>
+	
+	<bean id="ClusterWriter2" class="org.mpi.age.interbase.batch.ClusterWriter" scope="step">
+		<constructor-arg name="filePath" value="${path}${cluster.seccond}"/>
+		<constructor-arg name="taskExecutor" ref="taskExecutor"/>
+	</bean>
+	
+	<!-- Node Reader -->
+	<bean id="nodeReader" class="org.mpi.age.interbase.batch.NodeReader" scope="step">
+		<constructor-arg name="dbPath" value="#{jobParameters['db.path']}"/>
+		<constructor-arg name="dbConfig" ref="configuration"/>
+	</bean>
+	
+	<!-- MappingNeo4j Writer -->
+	<bean id="mappingNeo4jWriter" class="org.mpi.age.interbase.batch.MappingNeo4jItemWriter" scope="step">
+		<constructor-arg name="dbPath" value="#{jobParameters['db.path']}"/>
+		<constructor-arg name="dbConfig" ref="configuration"/>
+		<constructor-arg name="taskExecutor" ref="taskExecutor"/>
+	</bean>
+	
+	<!-- Gzip file reader -->
+	<bean id="gzipItemReader" class="org.springframework.batch.item.file.FlatFileItemReader" scope="step">
+        <property name="resource" value="file:${mapping.file.path}" />
+        <property name="lineMapper">
+            <bean class="org.mpi.age.interbase.batch.UniprotLineMapper" />
+        </property>
+        <property name="strict" value="true" />
+        <property name="bufferedReaderFactory">
+            <bean class="org.mpi.age.interbase.batch.GZipBufferedReaderFactory" />
+        </property>
+    </bean>
+    
+    <!-- Interbase Processor -->
+    <bean id="interProcessor" class="org.mpi.age.interbase.batch.InterBaseProcessor" scope="step"/>
+
+    <!-- Interbase Decider -->
+    <bean id="interDecider" class="org.mpi.age.interbase.batch.InterBaseDecider"/>
+    
+    <!-- Interbase Decider -->
+    <bean id="PICRIndex" class="org.mpi.age.interbase.service.PICRIndex">
+    </bean>
+</beans>

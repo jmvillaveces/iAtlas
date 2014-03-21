@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:neo4j="http://www.springframework.org/schema/data/neo4j"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:batch="http://www.springframework.org/schema/batch"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+	xsi:schemaLocation="http://www.springframework.org/schema/jdbc http://www.springframework.org/schema/jdbc/spring-jdbc-3.0.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+		http://www.springframework.org/schema/batch http://www.springframework.org/schema/batch/spring-batch-2.1.xsd
+		http://www.springframework.org/schema/data/neo4j http://www.springframework.org/schema/data/neo4j/spring-neo4j.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.0.xsd">
+	
+	<import resource="classpath:launch-context.xml" />
+	
+	<!-- Properties  -->
+	<context:property-placeholder location="classpath:InterBase.properties" />
+	
+	<!-- XML Marshalling -->
+	<bean id="castorMarshaller" class="org.springframework.oxm.castor.CastorMarshaller" >
+		<property name="mappingLocation" value="classpath:mapping.xml" />
+	</bean>
+	
+	<bean id="XMLConverter" class="mpg.biochem.de.interbase.util.XMLConverter">
+		<property name="marshaller" ref="castorMarshaller" />
+		<property name="unmarshaller" ref="castorMarshaller" />
+	</bean>
+	
+	<!-- ServiceHandler -->
+	<bean id="serviceHandler" class="mpg.biochem.de.interbase.model.ServiceHandler" init-method="initIt" destroy-method="save">
+		<property name="XMLConverter" ref="XMLConverter" />
+		<property name="path" value="${path}services/services.xml" />
+	</bean>
+	
+	<!-- PSICQUIC registry client -->
+	<bean id="registryClient" class="org.hupo.psi.mi.psicquic.registry.client.registry.DefaultPsicquicRegistryClient"/>
+	
+	<!-- Automatic task run -->
+	<bean id="runMeTask" class="mpg.biochem.de.interbase.task.TestRunTask">
+		<constructor-arg name="jobLauncher" ref="jobLauncher"/>
+        <constructor-arg name="job" ref="clusterJob"/>
+	</bean>
+	
+	<bean id="schedulerTask" class="org.springframework.scheduling.timer.MethodInvokingTimerTaskFactoryBean">
+		<property name="targetObject" ref="runMeTask" />
+		<property name="targetMethod" value="start" />
+	</bean>
+	
+	<bean id="timerTask" class="org.springframework.scheduling.timer.ScheduledTimerTask">
+		<property name="timerTask" ref="schedulerTask" />
+		<property name="delay" value="5000" />
+		<!-- One week -->
+		<property name="period" value="604800000" />
+	</bean>
+
+	<bean class="org.springframework.scheduling.timer.TimerFactoryBean">
+		<property name="scheduledTimerTasks">
+			<list>
+				<ref local="timerTask" />
+			</list>
+		</property>
+	</bean>
+	
+	<!-- Job -->
+	<batch:job id="clusterJob" job-repository="jobRepository">
+    	<batch:split id="split1" task-executor="taskExecutor" next="mapIds">
+	       <batch:flow>
+		       <batch:step id="fetchInt">
+		           <batch:tasklet ref="fetchInteractions"/>
+		       </batch:step>
+	       </batch:flow>
+	       <batch:flow>
+		       <batch:step id="downloadMappings" next="decision">
+		           <batch:tasklet ref="mapping"/>
+		       </batch:step>
+		       <batch:decision id="decision" decider="indexDecider">
+					<batch:next on="CONTINUE" to="createMappingIndex" />
+					<batch:next on="SKIP" to="fakeTask" />
+	  		   </batch:decision>
+	  		   <batch:step id="createMappingIndex" next="ncbiMappingIndex">
+		            <batch:tasklet task-executor="taskExecutor" throttle-limit="50">
+		                <batch:chunk reader="gzipItemReader" writer="mappingIndexWriter" commit-interval="10000"></batch:chunk>
+		            </batch:tasklet>
+		       </batch:step>
+		       <batch:step id="ncbiMappingIndex" next="push">
+		            <batch:tasklet task-executor="taskExecutor" throttle-limit="50">
+		                <batch:chunk reader="ncbiGzipItemReader" processor="ncbiProcessor" writer="ncbiMappingIndexWriter" commit-interval="10000"></batch:chunk>
+		            </batch:tasklet>
+		       </batch:step>
+		       <!--  <batch:step id="keggIndex">
+		           <batch:tasklet ref="keggMapping"/>
+		       </batch:step>-->
+		       <batch:step id="fakeTask" next="push">
+		           <batch:tasklet ref="fake"/>
+		       </batch:step>
+		       <batch:step id="push">
+		           <batch:tasklet ref="pushover"/>
+		       </batch:step>
+	       </batch:flow>
+       </batch:split>
+       <!-- <batch:decision id="decision2" decider="indexDecider">
+	   		<batch:next on="CONTINUE" to="mapIds" />
+			<batch:next on="SKIP" to="DB" />
+	   </batch:decision>
+	    
+       <batch:step id="consolidateFile" next="mapids">
+       		
+			<batch:tasklet throttle-limit="50">
+		    	<batch:chunk reader="multiReader" writer="BIWriter2" commit-interval="20000"/>
+		    	<batch:listeners>
+                	<batch:listener>
+                    	<bean class="mpg.biochem.de.interbase.batch.CrossRefListener">
+                        	<constructor-arg name="multiReader" ref="multiReader" />
+                    	</bean> 
+                	</batch:listener>
+                </batch:listeners>
+		    </batch:tasklet>
+		</batch:step>-->
+		<batch:step id="mapIds" next="sort">
+			<batch:tasklet task-executor="taskExecutor" throttle-limit="50">
+		    	<batch:chunk reader="multiReader" processor="interProcessor" writer="BIWriter" commit-interval="20000"/>
+		    	<batch:listeners>
+                	<batch:listener>
+                    	<bean class="mpg.biochem.de.interbase.batch.CrossRefListener">
+                        	<constructor-arg name="multiReader" ref="multiReader" />
+                    	</bean> 
+                	</batch:listener>
+                </batch:listeners>
+		    </batch:tasklet>
+		</batch:step>
+		<batch:step id="sort" next="cluster">
+			<batch:tasklet ref="simpleSort"/>
+		</batch:step>
+		<batch:step id="cluster" next="interactomes">
+			<batch:tasklet ref="groupCluster"/>
+		</batch:step>
+		<batch:step id="interactomes">
+			<batch:tasklet ref="interactomeBuilder"/>
+		</batch:step>
+		
+		<!--
+		<batch:step id="cluster">
+            <batch:tasklet>
+                <batch:chunk reader="flatFileItemReader" writer="ClusterWriter" commit-interval="50000"></batch:chunk>
+            </batch:tasklet>
+       </batch:step>
+       
+       <batch:step id="DB" next="clusterRel">
+            <batch:tasklet>
+                <batch:chunk reader="clusterflatFileItemReader" writer="PSIMINeo4jWriter" commit-interval="40000"></batch:chunk>
+            </batch:tasklet>
+       </batch:step>
+       <batch:step id="clusterRel">
+            <batch:tasklet ref="relCluster"/>
+       </batch:step>
+       -->
+    </batch:job>
+    
+    <!-- Tasklets -->
+    <bean id="fetchInteractions" class="mpg.biochem.de.interbase.task.FetchInteractionsTasklet">
+        <constructor-arg name="registryClient" ref="registryClient"/>
+        <constructor-arg name="taskExecutor" ref="taskExecutor" />
+		<constructor-arg name="serviceHandler" ref="serviceHandler"/>
+    </bean>
+	
+	<bean id="mapping" class="mpg.biochem.de.interbase.task.DownloadMappingsTasklet"/>
+	
+	<bean id="fake" class="mpg.biochem.de.interbase.task.FakeTasklet"/>
+	
+	<bean id="biBeanIoFactory" class="mpg.biochem.de.interbase.batch.BinaryInteractionIoFactory" />
+	
+	<bean id="simpleSort" class="mpg.biochem.de.interbase.task.FlatFileSortTasklet" scope="step">
+		<property name="inputResource">
+			<bean class="org.springframework.core.io.FileSystemResource">
+				<constructor-arg>
+					<bean class="java.io.File">
+						<constructor-arg value="${path}data/mapped.tab" />
+					</bean>
+				</constructor-arg>
+			</bean>
+		</property>
+		<property name="outputResource">
+			<bean class="org.springframework.core.io.FileSystemResource">
+				<constructor-arg>
+					<bean class="java.io.File">
+						<constructor-arg value="${path}data/mapped_sorted.tab" />
+					</bean>
+				</constructor-arg>
+			</bean>
+		</property>
+		<property name="comparator">
+			<bean class="mpg.biochem.de.interbase.batch.BinaryInteractionComparator"/>
+		</property>
+		<property name="inputIoFactory" ref="biBeanIoFactory" />
+		<property name="outputIoFactory" ref="biBeanIoFactory" />
+		<property name="tmpDirectory">
+			<bean class="org.springframework.core.io.FileSystemResource">
+				<constructor-arg>
+					<bean class="java.io.File">
+						<constructor-arg value="." />
+					</bean>
+				</constructor-arg>
+			</bean>
+		</property>
+	</bean>
+	
+	<bean id="groupCluster" class="mpg.biochem.de.interbase.task.GroupClusterTask" scope="step">
+		<property name="inputResource">
+			<bean class="org.springframework.core.io.FileSystemResource">
+				<constructor-arg>
+					<bean class="java.io.File">
+						<constructor-arg value="${path}data/mapped_sorted.tab" />
+					</bean>
+				</constructor-arg>
+			</bean>
+		</property>
+		<property name="outputResource">
+			<bean class="org.springframework.core.io.FileSystemResource">
+				<constructor-arg>
+					<bean class="java.io.File">
+						<constructor-arg value="${path}data/clustered.tab" />
+					</bean>
+				</constructor-arg>
+			</bean>
+		</property>
+		<property name="inputIoFactory" ref="biBeanIoFactory" />
+		<property name="outputIoFactory" ref="biBeanIoFactory" />
+	</bean>
+	
+	<!-- <bean id="mapTask" class="mpg.biochem.de.interbase.task.MappingTask">
+		<property name="reader" ref="multiReader"/>
+		<property name="writer" ref="BIWriter"/>
+		<property name="indexPath" value="${path}mapping/index"/>
+    	<property name="indexLogPath" value="${path}data/notmapped.tab"/>
+	</bean>
+	 -->
+	
+	<bean id="keggMapping" class="mpg.biochem.de.interbase.task.KeggMappingIndexTask" scope="step">
+		<constructor-arg name="path" value="${path}mapping/index"/>
+	</bean>
+	
+	<bean id="interactomeBuilder" class="mpg.biochem.de.interbase.task.InteractomeGeneratorTask" scope="step">
+		<property name="inputResource">
+			<bean class="org.springframework.core.io.FileSystemResource">
+				<constructor-arg>
+					<bean class="java.io.File">
+						<constructor-arg value="${path}data/clustered.tab" />
+					</bean>
+				</constructor-arg>
+			</bean>
+		</property>
+		<property name="inputIoFactory" ref="biBeanIoFactory" />
+		<property name="outputIoFactory" ref="biBeanIoFactory" />
+		<property name="path" value="${path}data/" />
+		<property name="organisms" value="${interactome.species}" />
+	</bean>
+	
+	<!-- Readers -->
+	
+	<!-- Gzip file reader -->
+	<bean id="gzipItemReader" class="org.springframework.batch.item.file.FlatFileItemReader" scope="step">
+        <property name="resource" value="file:${path}mapping/idmapping_selected.tab.gz" />
+        <property name="lineMapper">
+            <bean class="mpg.biochem.de.interbase.batch.UniprotLineMapper" />
+        </property>
+        <property name="strict" value="false" />
+        <property name="bufferedReaderFactory">
+            <bean class="mpg.biochem.de.interbase.batch.GZipBufferedReaderFactory" />
+        </property>
+    </bean>
+    
+    <!-- NCBI Gzip file reader -->
+	<bean id="ncbiGzipItemReader" class="org.springframework.batch.item.file.FlatFileItemReader" scope="step">
+        <property name="resource" value="file:${path}mapping/gene2accession.gz" />
+        <property name="strict" value="false" />
+        <property name="lineMapper">
+            <bean class="mpg.biochem.de.interbase.batch.UniprotLineMapper" />
+        </property>
+        <property name="bufferedReaderFactory">
+            <bean class="mpg.biochem.de.interbase.batch.GZipBufferedReaderFactory" />
+        </property>
+    </bean>
+    
+    <!-- Multi Reader -->
+	<bean id="multiReader" class="org.springframework.batch.item.file.MultiResourceItemReader">
+		<property name="resources" value="file:${path}services/*.tab" />
+		<property name="strict" value="true"/>
+		<property name="delegate">
+			<bean class="org.springframework.batch.item.file.FlatFileItemReader">
+				<property name="lineMapper">
+        		    <bean class="mpg.biochem.de.interbase.batch.PSIMITabLineMapper"></bean>
+        		</property>
+			</bean>
+		</property>
+	</bean>
+	
+	<!-- PSIMITab Reader -->
+	<bean id="BIReader" class="org.springframework.batch.item.file.FlatFileItemReader" scope="step">
+		<property name="resource" value="file:${path}data/unified.tab" />
+		<property name="lineMapper">
+            <bean class="mpg.biochem.de.interbase.batch.PSIMITabLineMapper"></bean>
+        </property>
+	</bean>
+	
+	<!-- Flat File Reader -->
+	<bean id="flatFileItemReader" class="org.springframework.batch.item.file.FlatFileItemReader" scope="step">
+		<!-- <property name="resource" value="file:#{jobParameters['input.file']}" /> -->
+		<property name="resource" value="file:${path}data/mapped.tab" />
+		<property name="lineMapper">
+            <bean class="mpg.biochem.de.interbase.batch.PSIMITabLineMapper"></bean>
+        </property>
+	</bean>
+	
+	<!-- Writers -->
+	<!-- Uniprot Mapping Writer -->
+	<bean id="mappingIndexWriter" class="mpg.biochem.de.interbase.batch.UniprotMappingIndexWriter" scope="step">
+		<constructor-arg name="path" value="${path}mapping/index"/>
+	</bean>
+	
+	<!-- ncbi Mapping Writer -->
+	<bean id="ncbiMappingIndexWriter" class="mpg.biochem.de.interbase.batch.NcbiMappingIndexWriter" scope="step">
+		<constructor-arg name="path" value="${path}mapping/index"/>
+	</bean>
+	
+	<!-- PSIMITab Writers -->
+	<bean id="BIWriter" class="org.springframework.batch.item.file.FlatFileItemWriter">
+		<property name="resource" value="file:${path}data/mapped.tab" />
+		<property name="lineAggregator">
+            <bean class="mpg.biochem.de.interbase.batch.PSIMITabLineAgregator"></bean>
+        </property>
+	</bean>
+	
+	<!--
+	<bean id="BIWriter2" class="org.springframework.batch.item.file.FlatFileItemWriter">
+		<property name="resource" value="file:${path}data/unified.tab" />
+		<property name="lineAggregator">
+            <bean class="mpg.biochem.de.interbase.batch.PSIMITabLineAgregator"></bean>
+        </property>
+	</bean>
+	-->
+	
+	<!-- Interbase Processor -->
+    <bean id="interProcessor" class="mpg.biochem.de.interbase.batch.InterBaseProcessor" scope="step">
+    	<constructor-arg name="indexPath" value="${path}mapping/index"/>
+    	<constructor-arg name="filePath" value="${path}data/notmapped.tab"/>
+    </bean>
+
+	<!-- ncbi Processor -->
+    <bean id="ncbiProcessor" class="mpg.biochem.de.interbase.batch.NcbiMappingProcessor" scope="step"/>
+    
+    <!-- pushover -->
+    <bean id="pushover" class="mpg.biochem.de.interbase.task.PushOverMsgTask" scope="step"/>
+
+	<bean id="indexDecider" class="mpg.biochem.de.interbase.batch.IndexDecider"/>
+</beans>
