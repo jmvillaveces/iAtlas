@@ -1,6 +1,9 @@
 package mpg.biochem.de.interbase.batch;
 
+import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.ItemReadListener;
+import org.springframework.batch.core.StepExecution;
+import org.springframework.batch.core.StepExecutionListener;
 import org.springframework.batch.item.file.MultiResourceItemReader;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -9,22 +12,17 @@ import psidev.psi.mi.tab.model.BinaryInteraction;
 import psidev.psi.mi.tab.model.CrossReference;
 import psidev.psi.mi.tab.model.CrossReferenceImpl;
 
-public class CrossRefListener implements ItemReadListener<BinaryInteraction> {
+public class CrossRefListener implements StepExecutionListener, ItemReadListener<BinaryInteraction> {
+	
+	private StepExecution stepExecution;
 
-	
-	private String source;
-	
-	public CrossRefListener(){
-	}
-	
-	public void setSource(String source){
-		this.source = source;
-	}
+	public CrossRefListener(){}
 	
 	@Override
 	public void afterRead(BinaryInteraction interaction) {
-		
 		if(interaction != null){
+			String source = stepExecution.getExecutionContext().get("fileName").toString();
+			
 			CrossReference cr = new CrossReferenceImpl();
 			cr.setDatabase("iAtlas");
 			cr.setIdentifier(source);
@@ -37,4 +35,14 @@ public class CrossRefListener implements ItemReadListener<BinaryInteraction> {
 
 	@Override
 	public void onReadError(Exception ex) {}
+
+	@Override
+	public void beforeStep(StepExecution stepExecution) {
+		this.stepExecution = stepExecution;
+	}
+
+	@Override
+	public ExitStatus afterStep(StepExecution stepExecution) {
+		return null;
+	}
 }

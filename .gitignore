@@ -4,3 +4,13 @@
 *.jar
 *.war
 *.ear
+
+.classpath
+
+.project
+
+.settings/com.springsource.sts.config.flow.prefs
+
+.springBeans
+
+.target
