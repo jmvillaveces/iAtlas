@@ -66,7 +66,7 @@
     	<batch:split id="split1" task-executor="taskExecutor" next="unify">
 	       <batch:flow>
 		       <batch:step id="fetchInt">
-		           <batch:tasklet ref="fetchInteractions"/>
+		           <batch:tasklet ref="pushover"/>
 		       </batch:step>
 	       </batch:flow>
 	       <batch:flow>
@@ -97,17 +97,17 @@
        </batch:split>
        
        <batch:step id="unify" next="mapIds">
-			<batch:tasklet task-executor="taskExecutor">
-		    	<batch:chunk reader="multiReader" writer="BIWriter" commit-interval="30000"/>
-				<batch:listeners>
-					<batch:listener ref="fileNameListener" />
-				</batch:listeners>
+			<batch:tasklet>
+		    	<batch:chunk reader="multiReaderWrapper" writer="BIWriter" commit-interval="30000"/>
+		    	<batch:listeners>
+		    		<batch:listener ref="fileNameListener"/>
+		    	</batch:listeners>
 			</batch:tasklet>
 	   </batch:step>
 	   
 	   <batch:step id="mapIds" next="sort">
 			<batch:tasklet>
-		    	<batch:chunk reader="psimiReader2" processor="interProcessor" writer="BIWriter2" commit-interval="30000"/>
+		    	<batch:chunk reader="psimiReader" processor="interProcessor" writer="BIWriter2" commit-interval="30000"/>
 		    </batch:tasklet>
        </batch:step>   	
 		
@@ -237,22 +237,20 @@
     </bean>
     
     <!-- Multi Reader -->
-	<bean id="multiReader" class="org.springframework.batch.item.file.MultiResourceItemReader">
+    <bean id="multiReaderWrapper" class="mpg.biochem.de.interbase.batch.WrappedMrirToGetCurrentResource" scope="step">
 		<property name="resources" value="file:${path}services/*.tab" />
 		<property name="strict" value="true"/>
-		<property name="delegate" ref= "psimiReader"/>
+		<property name="delegate">
+			<bean class="org.springframework.batch.item.file.FlatFileItemReader">
+				<property name="lineMapper">
+        		    <bean class="mpg.biochem.de.interbase.batch.PSIMITabLineMapper"></bean>
+        		</property>
+			</bean>
+		</property>
 	</bean>
-	
+    
 	<bean id="psimiReader" class="org.springframework.batch.item.file.FlatFileItemReader" scope="step">
-		<property name="resource" value="#{stepExecutionContext[fileName]}" />
-		<property name="strict" value="true"/>
-		<property name="lineMapper">
-        	<bean class="mpg.biochem.de.interbase.batch.PSIMITabLineMapper"></bean>
-        </property>
-	</bean>
-	
-	<bean id="psimiReader2" class="org.springframework.batch.item.file.FlatFileItemReader" scope="step">
-		<property name="resource" value="file:${path}data/unified" />
+		<property name="resource" value="file:${path}data/unified.tab" />
 		<property name="strict" value="true"/>
 		<property name="lineMapper">
         	<bean class="mpg.biochem.de.interbase.batch.PSIMITabLineMapper"></bean>
@@ -272,14 +270,14 @@
 	
 	<!-- PSIMITab Writers -->
 	<bean id="BIWriter" class="org.springframework.batch.item.file.FlatFileItemWriter" scope="step">
-		<property name="resource" value="file:${path}data/unified" />
+		<property name="resource" value="file:${path}data/unified.tab" />
 		<property name="lineAggregator">
             <bean class="mpg.biochem.de.interbase.batch.PSIMITabLineAgregator"></bean>
         </property>
 	</bean>
 	
 	<bean id="BIWriter2" class="org.springframework.batch.item.file.FlatFileItemWriter" scope="step">
-		<property name="resource" value="file:${path}data/mapped" />
+		<property name="resource" value="file:${path}data/mapped.tab" />
 		<property name="lineAggregator">
             <bean class="mpg.biochem.de.interbase.batch.PSIMITabLineAgregator"></bean>
         </property>
@@ -291,7 +289,6 @@
     <bean id="interProcessor" class="mpg.biochem.de.interbase.batch.InterBaseProcessor" scope="step">
     	<constructor-arg name="indexPath" value="${path}mapping/index"/>
     	<constructor-arg name="filePath" value="${path}data/notmapped.tab"/>
-    	<property name="source" value="#{stepExecutionContext[fileName]}" />
     </bean>
 
 	<!-- ncbi Processor -->

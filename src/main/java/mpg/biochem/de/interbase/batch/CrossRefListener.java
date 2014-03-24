@@ -12,7 +12,7 @@ import psidev.psi.mi.tab.model.BinaryInteraction;
 import psidev.psi.mi.tab.model.CrossReference;
 import psidev.psi.mi.tab.model.CrossReferenceImpl;
 
-public class CrossRefListener implements StepExecutionListener, ItemReadListener<BinaryInteraction> {
+public class CrossRefListener implements ItemReadListener<BinaryInteraction>, StepExecutionListener {
 	
 	private StepExecution stepExecution;
 
@@ -21,7 +21,7 @@ public class CrossRefListener implements StepExecutionListener, ItemReadListener
 	@Override
 	public void afterRead(BinaryInteraction interaction) {
 		if(interaction != null){
-			String source = stepExecution.getExecutionContext().get("fileName").toString();
+			String source = stepExecution.getExecutionContext().get("source").toString();
 			
 			CrossReference cr = new CrossReferenceImpl();
 			cr.setDatabase("iAtlas");

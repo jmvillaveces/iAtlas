@@ -48,7 +48,6 @@ public class InterBaseProcessor implements ItemProcessor<BinaryInteraction, Bina
 	private File notMapped;
 	
 	private Logger logger = Logger.getLogger(InterBaseProcessor.class);
-	private String source;
 	
 	private Pattern uniprotPattern = Pattern.compile("[A-Z][0-9][A-Z0-9]{3}[0-9]?");
 	
@@ -60,21 +59,14 @@ public class InterBaseProcessor implements ItemProcessor<BinaryInteraction, Bina
 		if(notMapped.exists())
 			notMapped.delete();
 	}
-	
-	public void setSource(String source) {
-		this.source = source;
-	}
 
 	@Override
 	public BinaryInteraction process(BinaryInteraction interaction) throws Exception {
 		
-		CrossReference cr = new CrossReferenceImpl();
-		cr.setDatabase("iAtlas");
-		cr.setIdentifier(source);
-		interaction.getSourceDatabases().add(cr);
+		CrossReference cr = (CrossReference) interaction.getSourceDatabases().get(interaction.getSourceDatabases().size());
 		
 		//Check if interaction should be analyzed
-		if(!servicesToSkip.contains(source)){
+		if(!servicesToSkip.contains(cr.getIdentifier())){
 			processInteractor(interaction.getInteractorA());
 			processInteractor(interaction.getInteractorB());
 		}
