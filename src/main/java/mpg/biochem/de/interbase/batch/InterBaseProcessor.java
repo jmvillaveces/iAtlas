@@ -63,7 +63,7 @@ public class InterBaseProcessor implements ItemProcessor<BinaryInteraction, Bina
 	@Override
 	public BinaryInteraction process(BinaryInteraction interaction) throws Exception {
 		
-		CrossReference cr = (CrossReference) interaction.getSourceDatabases().get(interaction.getSourceDatabases().size());
+		CrossReference cr = (CrossReference) interaction.getSourceDatabases().get(interaction.getSourceDatabases().size() -1);
 		
 		//Check if interaction should be analyzed
 		if(!servicesToSkip.contains(cr.getIdentifier())){
