@@ -6,8 +6,11 @@ import java.util.Properties;
 import mpg.biochem.de.interbase.util.PushOverNotificationManager;
 
 import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.support.ClassPathXmlApplicationContext;
 import org.springframework.core.io.ClassPathResource;
@@ -61,11 +64,29 @@ public class Main {
 			new File(path+"services").mkdirs();
 			new File(path+"mapping").mkdirs();
 			
-			Job job = (Job) ctx.getBean("clusterJob");
-			JobLauncher jobLauncher = (JobLauncher) ctx.getBean("jobLauncher");
+			JobParameters params = new JobParametersBuilder().addString("id", "hola").toJobParameters();
 			
-			PushOverNotificationManager.sendNotification("About to start the iAtlas job");
-			jobLauncher.run(job, new JobParametersBuilder().toJobParameters());
+			//Job job = (Job) ctx.getBean("clusterJob");
+			//JobLauncher jobLauncher = (JobLauncher) ctx.getBean(JobLauncher.class);
+			JobRepository jobRepository = (JobRepository) ctx.getBean(JobRepository.class);
+			
+			if(jobRepository.isJobInstanceExists("clusterJob", params)){
+				System.out.println("exists!!!");
+			}else{
+				Job job = (Job) ctx.getBean("clusterJob");
+				JobLauncher jobLauncher = (JobLauncher) ctx.getBean(JobLauncher.class);
+				JobExecution execution = jobLauncher.run(job, params);
+				System.out.println(job.getName());
+			}
+			
+			
+			//JobExecution execution = jobLauncher.run(job, params);
+			
+			//PushOverNotificationManager.sendNotification("About to start the iAtlas job");
+			
+			
+			//JobExecution firstExecution = jobRepository..createJobExecution(job, new JobParametersBuilder().toJobParameters());
+			//jobRepository.saveOrUpdate(firstExecution);
 		}
 	}
 }
