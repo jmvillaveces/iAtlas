@@ -1,9 +1,5 @@
 package mpg.biochem.de.interbase.service;
 
-import static org.junit.Assert.assertNotNull;
-
-import java.util.TreeSet;
-
 import org.junit.Before;
 import org.junit.Test;
 

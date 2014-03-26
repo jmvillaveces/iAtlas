@@ -3,7 +3,6 @@ package mpg.biochem.de.interbase.service;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.TreeSet;
 

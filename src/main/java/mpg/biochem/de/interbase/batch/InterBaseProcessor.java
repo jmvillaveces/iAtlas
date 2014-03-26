@@ -5,30 +5,21 @@ import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import mpg.biochem.de.interbase.service.IDRegexFinder;
-import mpg.biochem.de.interbase.service.PICRService;
-import mpg.biochem.de.interbase.service.PICRService.PICRResult;
 import mpg.biochem.de.interbase.service.UniProtIndex;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
-import org.apache.jcs.JCS;
 import org.apache.jcs.access.exception.CacheException;
 import org.apache.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.queryParser.ParseException;
-import org.jdom.JDOMException;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.beans.factory.annotation.Value;
 import org.xml.sax.SAXException;
@@ -44,7 +35,6 @@ public class InterBaseProcessor implements ItemProcessor<BinaryInteraction, Bina
 	private List<String> servicesToSkip;
 	
 	private UniProtIndex uniprot;
-	private PICRService picr;
 	private File notMapped;
 	
 	private Logger logger = Logger.getLogger(InterBaseProcessor.class);
@@ -53,7 +43,6 @@ public class InterBaseProcessor implements ItemProcessor<BinaryInteraction, Bina
 	
 	public InterBaseProcessor(String indexPath, String filePath) throws IOException{
 		uniprot = new UniProtIndex(indexPath);
-		picr = new PICRService();
 		
 		notMapped = new File(filePath);
 		if(notMapped.exists())

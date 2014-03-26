@@ -1,14 +1,8 @@
 package mpg.biochem.de.interbase.batch;
 
-import java.util.Collections;
 import java.util.Comparator;
-import java.util.List;
-import java.util.TreeSet;
 
-import mpg.biochem.de.interbase.util.Util;
 import psidev.psi.mi.tab.model.BinaryInteraction;
-import psidev.psi.mi.tab.model.CrossReference;
-import psidev.psi.mi.tab.model.Interactor;
 
 public class BinaryInteractionComparator implements Comparator<BinaryInteraction> {
 

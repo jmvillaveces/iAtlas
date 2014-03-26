@@ -4,8 +4,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 
-import org.springframework.batch.item.util.FileUtils;
-
 import mpg.biochem.de.interbase.util.XMLConverter;
 
 public class ServiceHandler {

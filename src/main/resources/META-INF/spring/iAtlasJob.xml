@@ -35,32 +35,6 @@
 	<!-- PSICQUIC registry client -->
 	<bean id="registryClient" class="org.hupo.psi.mi.psicquic.registry.client.registry.DefaultPsicquicRegistryClient"/>
 	
-	<!-- Automatic task run -->
-	<bean id="runMeTask" class="mpg.biochem.de.interbase.task.TestRunTask">
-		<constructor-arg name="jobLauncher" ref="jobLauncher"/>
-        <constructor-arg name="job" ref="clusterJob"/>
-	</bean>
-	
-	<bean id="schedulerTask" class="org.springframework.scheduling.timer.MethodInvokingTimerTaskFactoryBean">
-		<property name="targetObject" ref="runMeTask" />
-		<property name="targetMethod" value="start" />
-	</bean>
-	
-	<bean id="timerTask" class="org.springframework.scheduling.timer.ScheduledTimerTask">
-		<property name="timerTask" ref="schedulerTask" />
-		<property name="delay" value="5000" />
-		<!-- One week -->
-		<property name="period" value="604800000" />
-	</bean>
-
-	<bean class="org.springframework.scheduling.timer.TimerFactoryBean">
-		<property name="scheduledTimerTasks">
-			<list>
-				<ref local="timerTask" />
-			</list>
-		</property>
-	</bean>
-	
 	<!-- Job -->
 	<batch:job id="clusterJob" job-repository="jobRepository">
     	<batch:split id="split1" task-executor="taskExecutor" next="unify">
@@ -298,9 +272,4 @@
     <bean id="pushover" class="mpg.biochem.de.interbase.task.PushOverMsgTask" scope="step"/>
 
 	<bean id="indexDecider" class="mpg.biochem.de.interbase.batch.IndexDecider"/>
-	
-	<!-- Partitioner -->
-	<bean id="partitioner" class="org.springframework.batch.core.partition.support.MultiResourcePartitioner" scope="step">
-		<property name="resources" value="file:${path}services/*.tab" />
-	</bean>
 </beans>

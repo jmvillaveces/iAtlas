@@ -12,8 +12,6 @@ import java.util.Date;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-import psidev.psi.mi.tab.model.BinaryInteraction;
-
 public class Util {
 	
 	/*public static String getInteractionIdPair(BinaryInteraction interaction){

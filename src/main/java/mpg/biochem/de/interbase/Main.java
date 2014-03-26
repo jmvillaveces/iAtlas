@@ -1,10 +1,18 @@
 package mpg.biochem.de.interbase;
 
+import java.io.File;
+import java.util.Properties;
+
+import mpg.biochem.de.interbase.util.PushOverNotificationManager;
+
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.support.ClassPathXmlApplicationContext;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PropertiesLoaderUtils;
 
 public class Main {
 	
@@ -43,6 +51,21 @@ public class Main {
 			}
 		}else{
 			ctx = new ClassPathXmlApplicationContext("classpath:/META-INF/spring/iAtlasJob.xml");
+			
+			Resource resource = new ClassPathResource("InterBase.properties");
+			Properties props = PropertiesLoaderUtils.loadProperties(resource);
+			
+			String path = props.getProperty("path");
+			new File(path).mkdirs();
+			new File(path+"data").mkdirs();
+			new File(path+"services").mkdirs();
+			new File(path+"mapping").mkdirs();
+			
+			Job job = (Job) ctx.getBean("clusterJob");
+			JobLauncher jobLauncher = (JobLauncher) ctx.getBean("jobLauncher");
+			
+			PushOverNotificationManager.sendNotification("About to start the iAtlas job");
+			jobLauncher.run(job, new JobParametersBuilder().toJobParameters());
 		}
 	}
 }

@@ -3,7 +3,6 @@ package mpg.biochem.de.interbase.service;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.regex.Pattern;
 
 
 public class PatternTest {
