@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <beans xmlns="http://www.springframework.org/schema/beans"
-	xmlns:neo4j="http://www.springframework.org/schema/data/neo4j"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xmlns:batch="http://www.springframework.org/schema/batch"
 	xmlns:context="http://www.springframework.org/schema/context"
@@ -8,7 +7,6 @@
 	xsi:schemaLocation="http://www.springframework.org/schema/jdbc http://www.springframework.org/schema/jdbc/spring-jdbc-3.0.xsd
 		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
 		http://www.springframework.org/schema/batch http://www.springframework.org/schema/batch/spring-batch-2.2.xsd
-		http://www.springframework.org/schema/data/neo4j http://www.springframework.org/schema/data/neo4j/spring-neo4j.xsd
 		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.0.xsd">
 	
 	<import resource="classpath:launch-context.xml" />
@@ -122,9 +120,10 @@
 	</batch:job>
 	
 	<batch:job id="mainJob" job-repository="jobRepository">
-    	<batch:split id="split1" task-executor="taskExecutor" next="mergeFiles">
+    	<batch:split id="split1" task-executor="taskExecutor" next="mapIds">
 	       <batch:flow>
-		       <batch:step id="downloadInteractions" parent="fetchIntParent"/>
+		       <batch:step id="downloadInteractions" parent="fetchIntParent" next="mergeFiles"/>
+		       <batch:step id="mergeFiles" parent="unifyPSMIFilesParent"/>
 	       </batch:flow>
 	       <batch:flow>
 		       <batch:step id="downloadMappings" parent="mappingsParent" next="decision"/>
@@ -142,8 +141,6 @@
 		       </batch:step>
 	       </batch:flow>
        </batch:split>
-      
-       <batch:step id="mergeFiles" next="mapIds" parent="unifyPSMIFilesParent"/>
 	   
 	   <batch:step id="mapIds" parent="mapIdsParent" next="sortFile"/>   	
 		
