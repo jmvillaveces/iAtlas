@@ -12,6 +12,7 @@ import mpg.biochem.de.interbase.model.ServiceHandler;
 
 import org.apache.log4j.Logger;
 import org.hupo.psi.mi.psicquic.wsclient.PsicquicSimpleClient;
+import org.springframework.beans.factory.annotation.Value;
 
 public class ServerDataFetcherTask implements Runnable {
 
@@ -24,6 +25,9 @@ public class ServerDataFetcherTask implements Runnable {
 	private Service service;
 	private ServiceHandler serviceHandler;
 	private CountDownLatch latch;
+	
+	@Value("psicquic.query")
+	private String query;
 	
 	private static final Logger logger = Logger.getLogger(ServerDataFetcherTask.class);
 	

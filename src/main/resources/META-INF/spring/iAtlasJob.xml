@@ -35,32 +35,105 @@
 	<!-- PSICQUIC registry client -->
 	<bean id="registryClient" class="org.hupo.psi.mi.psicquic.registry.client.registry.DefaultPsicquicRegistryClient"/>
 	
-	<!-- Job -->
-	<batch:job id="clusterJob" job-repository="jobRepository">
-    	<batch:split id="split1" task-executor="taskExecutor" next="unify">
+	
+	<!-- Parent steps -->
+	<batch:step id="fetchIntParent">
+		<batch:tasklet ref="fetchInteractions"/>
+	</batch:step>
+	
+	<batch:step id="unifyPSMIFilesParent">
+		<batch:tasklet>
+			<batch:chunk reader="multiReaderWrapper" writer="BIWriter" commit-interval="30000"/>
+		    <batch:listeners>
+		    	<batch:listener ref="fileNameListener"/>
+		    </batch:listeners>
+		</batch:tasklet>
+	</batch:step>
+	
+	<batch:step id="mappingsParent">
+		<batch:tasklet ref="mapping"/>
+	</batch:step>
+	
+	<batch:step id="createUniprotIndexParent">
+		<batch:tasklet task-executor="taskExecutor" throttle-limit="50">
+			<batch:chunk reader="gzipItemReader" writer="mappingIndexWriter" commit-interval="10000"></batch:chunk>
+		</batch:tasklet>
+	</batch:step>
+	
+	<batch:step id="createNcbiIndexParent">
+		<batch:tasklet task-executor="taskExecutor" throttle-limit="50">
+			<batch:chunk reader="ncbiGzipItemReader" processor="ncbiProcessor" writer="ncbiMappingIndexWriter" commit-interval="10000"></batch:chunk>
+		</batch:tasklet>
+	</batch:step>
+	
+	<batch:step id="mapIdsParent">
+		<batch:tasklet>
+			<batch:chunk reader="psimiReader" processor="interProcessor" writer="BIWriter2" commit-interval="30000"/>
+		</batch:tasklet>
+    </batch:step>
+    
+    <batch:step id="sortParent">
+			<batch:tasklet ref="simpleSort"/>
+	</batch:step>
+	
+	<batch:step id="clusterParent">
+		<batch:tasklet ref="groupCluster"/>
+	</batch:step>
+	
+	<batch:step id="interactomesParent">
+		<batch:tasklet ref="interactomeBuilder"/>
+	</batch:step>
+	
+	<!-- Jobs -->
+	<batch:job id="interactions" job-repository="jobRepository">
+		<batch:step id="interactions-s1" parent="fetchIntParent"/>
+	</batch:job>
+	
+	<batch:job id="unify" job-repository="jobRepository">
+		<batch:step id="unify-s1" parent="unifyPSMIFilesParent"/>
+	</batch:job>
+	
+	<batch:job id="mappings" job-repository="jobRepository">
+		<batch:step id="mappings-s1" parent="mappingsParent"/>
+	</batch:job>
+	
+	<batch:job id="uniprotIndex" job-repository="jobRepository">
+		<batch:step id="uniprotIndex-s1" parent="createUniprotIndexParent"/>
+	</batch:job>
+	
+	<batch:job id="ncbiIndex" job-repository="jobRepository">
+		<batch:step id="ncbiIndex-s1" parent="createNcbiIndexParent"/>
+	</batch:job>
+	
+	<batch:job id="idMapping" job-repository="jobRepository">
+		<batch:step id="idMapping-s1" parent="mapIdsParent"/>
+	</batch:job>
+	
+	<batch:job id="sort" job-repository="jobRepository">
+		<batch:step id="sort-s1" parent="sortParent"/>
+	</batch:job>
+	
+	<batch:job id="cluster" job-repository="jobRepository">
+		<batch:step id="cluster-s1" parent="clusterParent"/>
+	</batch:job>
+	
+	<batch:job id="interactomes" job-repository="jobRepository">
+		<batch:step id="interactomes-s1" parent="interactomesParent"/>
+	</batch:job>
+	
+	<batch:job id="mainJob" job-repository="jobRepository">
+    	<batch:split id="split1" task-executor="taskExecutor" next="mergeFiles">
 	       <batch:flow>
-		       <batch:step id="fetchInt">
-		           <batch:tasklet ref="fetchInteractions"/>
-		       </batch:step>
+		       <batch:step id="downloadInteractions" parent="fetchIntParent"/>
 	       </batch:flow>
 	       <batch:flow>
-		       <batch:step id="downloadMappings" next="decision">
-		           <batch:tasklet ref="mapping"/>
-		       </batch:step>
+		       <batch:step id="downloadMappings" parent="mappingsParent" next="decision"/>
 		       <batch:decision id="decision" decider="indexDecider">
-					<batch:next on="CONTINUE" to="createMappingIndex" />
+					<batch:next on="CONTINUE" to="uniprotMappingIndex" />
 					<batch:next on="SKIP" to="fakeTask" />
 	  		   </batch:decision>
-	  		   <batch:step id="createMappingIndex" next="ncbiMappingIndex">
-		            <batch:tasklet task-executor="taskExecutor" throttle-limit="50">
-		                <batch:chunk reader="gzipItemReader" writer="mappingIndexWriter" commit-interval="10000"></batch:chunk>
-		            </batch:tasklet>
-		       </batch:step>
-		       <batch:step id="ncbiMappingIndex" next="fakeTask">
-		            <batch:tasklet task-executor="taskExecutor" throttle-limit="50">
-		                <batch:chunk reader="ncbiGzipItemReader" processor="ncbiProcessor" writer="ncbiMappingIndexWriter" commit-interval="10000"></batch:chunk>
-		            </batch:tasklet>
-		       </batch:step>
+	  		   <batch:step id="uniprotMappingIndex" parent="createUniprotIndexParent" next="ncbiMappingIndex"/>
+		       <batch:step id ="ncbiMappingIndex" parent="createNcbiIndexParent" next="fakeTask"/>
 		       <batch:step id="fakeTask" next="push">
 		           <batch:tasklet ref="fake"/>
 		       </batch:step>
@@ -69,34 +142,18 @@
 		       </batch:step>
 	       </batch:flow>
        </batch:split>
-       <!-- java.net.SocketTimeoutException -->
-       <batch:step id="unify" next="mapIds">
-			<batch:tasklet>
-		    	<batch:chunk reader="multiReaderWrapper" writer="BIWriter" commit-interval="30000"/>
-		    	<batch:listeners>
-		    		<batch:listener ref="fileNameListener"/>
-		    	</batch:listeners>
-			</batch:tasklet>
-	   </batch:step>
+      
+       <batch:step id="mergeFiles" next="mapIds" parent="unifyPSMIFilesParent"/>
 	   
-	   <batch:step id="mapIds" next="sort">
-			<batch:tasklet>
-		    	<batch:chunk reader="psimiReader" processor="interProcessor" writer="BIWriter2" commit-interval="30000"/>
-		    </batch:tasklet>
-       </batch:step>   	
+	   <batch:step id="mapIds" parent="mapIdsParent" next="sortFile"/>   	
 		
-		<batch:step id="sort" next="cluster">
-			<batch:tasklet ref="simpleSort"/>
-		</batch:step>
-		<batch:step id="cluster" next="interactomes">
-			<batch:tasklet ref="groupCluster"/>
-		</batch:step>
-		<batch:step id="interactomes">
-			<batch:tasklet ref="interactomeBuilder"/>
-		</batch:step>
+		<batch:step id="sortFile" parent="sortParent" next="clusterFile"/>
+		
+		<batch:step id="clusterFile" parent="clusterParent" next="createInteractomes"/>
+		
+		<batch:step id="createInteractomes" parent="interactomesParent"/>
     </batch:job>
-    
-   
+
     <!-- Tasklets -->
     <bean id="fetchInteractions" class="mpg.biochem.de.interbase.task.FetchInteractionsTasklet">
         <constructor-arg name="registryClient" ref="registryClient"/>
