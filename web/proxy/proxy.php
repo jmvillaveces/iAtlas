@@ -7,7 +7,8 @@
                 'http://das.proteinatlas.org',
                 'http://www.ensembl.org',
 		        'http://www-test.ebi.ac.uk',
-		        'http://dachstein.biochem.mpg.de'
+		        'http://dachstein.biochem.mpg.de',
+                'http://chart.apis.google.com'
         );
         
 /* GET THE URL TO PROXY */

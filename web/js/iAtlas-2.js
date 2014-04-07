@@ -1,6 +1,7 @@
 var ATLAS = function() {
     //Private attributes
     
+    var use_proxy = true;
     var proxy = 'proxy/proxy.php';
     var psicquicUrl = 'http://dachstein.biochem.mpg.de:8080/psicquic/webservices/current/search/query';
     var esummary = 'http://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?';
@@ -13,10 +14,8 @@ var ATLAS = function() {
     var _visual_style = {
         nodes: {
             shape: "ELLIPSE",
-            //color: { discreteMapper: colorMapper },
             opacity: 0.8,
             size: 40,
-            tooltipText: "<b>${organism}</b>",
             borderWidth:0
         },
         edges: {
@@ -41,70 +40,85 @@ var ATLAS = function() {
     //Private functions
     
     var _getInteractionCount = function(callback){
-        $.get(proxy, { url: psicquicUrl+'/*?format=count' }).done(function(data) {
+        
+        var done = function(data) {
             interactionCount = Number(data);
             callback(data);
+        }
+        
+        if(use_proxy){
+            $.get(proxy, { url: psicquicUrl+'/*?format=count' }).done(done);
+        }else{
+            $.get(psicquicUrl+'/*?format=count').done(done);
+        }
+    }
+    
+    var _on_got_mitab = function(mitab){
+        _decodeToJSON(mitab);
+                
+        var network_json = {
+            data: {
+                nodes: nodes,
+                edges: edges
+            }
+        };
+            
+        network_json.dataSchema = _dataSchema;
+                
+        // Create the mapper:
+        var colorMapper = {
+                attrName: "organism",
+                entries: []
+        };
+                
+        var content = '';
+        jQuery.each(organisms, function(i,o) {
+            o.color= colors[i];
+            content += '<li><input type="checkbox" value="'+o.id+'" checked><div style="background-color:'+colors[i]+';height:15px;width:15px;float:right"></div> '+o.name+'<p class="grey">taxId: '+o.id+' - nodes: '+o.nodes+'</p></li>';
         });
+        
+        console.log(organisms);
+        $('#orgs').append(content);
+                
+        vis.ready(function(){
+                
+            $('#orgs input').click(function(){
+                var arr = $('#orgs input:checked').map(function(){
+                    return $(this).val();
+                }).get();
+                        
+                vis.filter("nodes", function(n) {
+                    for(i in arr)
+                        if(arr[i] == n.data.organism)
+                            return true;
+                            
+                    return false;
+                            
+                }, true);
+                       
+            });
+        });
+        //image:'proxy/proxy.php?url=http://chart.apis.google.com/chart?chs=300x300&cht=p&chd=t:33.3,33.3,33.3&chco=666666,222222,009900'//'http://chart.googleapis.com/chart?chs=250x100&chd=t:33.3,33.3,33.3&cht=p&chco=666666,222222,009900'    
+        _visual_style.nodes.color = {discreteMapper: colorMapper};
+                
+        vis.draw({ visualStyle:_visual_style, network: network_json });
     }
     
     var _query = function(query){
         
         var url = psicquicUrl + '/' + query;
         
-        jQuery.ajax({ 
-			url: proxy,
+        var ajax_setup ={ 
+			url: url,
 			dataType: "text",
-			data: [{ name: "url", value: url }],
-			success: function(mitab){
-                _decodeToJSON(mitab);
-                
-                var network_json = {
-                    data: {
-                        nodes: nodes,
-                        edges: edges
-                    }
-                }
-            
-                network_json.dataSchema = _dataSchema;
-                
-                // Create the mapper:
-                var colorMapper = {
-                        attrName: "organism",
-                        entries: []
-                };
-                
-                var content = '';
-                jQuery.each(organisms, function(i,o) {
-                    colorMapper.entries.push({attrValue:o.id, value: colors[i]});
-                    content += '<li><input type="checkbox" value="'+o.id+'" checked><div style="background-color:'+colors[i]+';height:15px;width:15px;float:right"></div> '+o.name+'<p class="grey">taxId: '+o.id+' - nodes: '+o.nodes+'</p></li>';
-                });
-                
-                $('#orgs').append(content);
-                
-                vis.ready(function(){
-                
-                    $('#orgs input').click(function(){
-                        var arr = $('#orgs input:checked').map(function(){
-                            return $(this).val();
-                        }).get();
-                        
-                        vis.filter("nodes", function(n) {
-                            for(i in arr)
-                                if(arr[i] == n.data.organism)
-                                    return true;
-                            
-                            return false;
-                            
-                        }, true);
-                       
-                    });
-                });
-            
-                _visual_style.nodes.color = {discreteMapper: colorMapper};
-                
-                vis.draw({ visualStyle:_visual_style, network: network_json });
-            }
-		});
+			success: _on_got_mitab
+		};
+        
+        if(use_proxy){
+            ajax_setup.url = proxy;
+            ajax_setup.data = [{ name: "url", value: url }];
+        }
+        jQuery.ajax(ajax_setup);
     };
     
     var _processNode = function(nodeStr, altIds, orgStr){
@@ -112,16 +126,18 @@ var ATLAS = function() {
         var id= aux[1];
         if(nodeStr[0].indexOf("chebi") == 0)
             id= aux[1]+':'+aux[2];
-                
-                
-        var match = orgStr.match(/\d+((.|,)\d+)?/);
-        var organism = (match == null) ? 'unknown' : match[0];  
-                
-        _addOrganism(organism);
         
+        var org = [];
+        $.each(orgStr.split('|'), function(i, e){
+            var match = e.match(/\d+((.|,)\d+)?/);
+            var organism = (match == null) ? 'unknown' : match[0];
+            _addOrganism(organism);
+            org.push(organism);
+        });  
+
         var node = {
             id: id,
-            organism: organism,
+            organism: org.join(','),
             label:id,
             altIds: altIds
         };
@@ -207,11 +223,10 @@ var ATLAS = function() {
     
     var _binaryInsert = function(array, value, prop) {
         var index = _binarySearch(array, value, prop);
-        if (index < 0) {
+        if (index < 0)
             array.splice(-(index + 1), 0, value);
-            return true;
-        }
-        return false;
+
+        return index;
     };
     
     var _binarySearch = function (arr, value, prop) {
@@ -328,7 +343,9 @@ var ATLAS = function() {
         getOrganisms:function(){
             return organisms;
         },
-        getInteractionCount: _getInteractionCount
+        getInteractionCount: _getInteractionCount,
+        binarySearch:_binarySearch,
+        binaryInsert:_binaryInsert
     };
     return atlas;
 }();
