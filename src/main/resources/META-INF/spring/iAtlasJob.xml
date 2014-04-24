@@ -82,6 +82,10 @@
 		<batch:tasklet ref="interactomeBuilder"/>
 	</batch:step>
 	
+	<batch:step id="indexerParent">
+		<batch:tasklet ref="miTabIndexerTask"/>
+	</batch:step>
+	
 	<!-- Jobs -->
 	<batch:job id="interactions" job-repository="jobRepository">
 		<batch:step id="interactions-s1" parent="fetchIntParent"/>
@@ -119,6 +123,11 @@
 		<batch:step id="interactomes-s1" parent="interactomesParent"/>
 	</batch:job>
 	
+	<batch:job id="indexer" job-repository="jobRepository">
+		<batch:step id="indexer-s1" parent="indexerParent"/>
+	</batch:job>
+	
+	<!-- Main JOB! -->
 	<batch:job id="mainJob" job-repository="jobRepository">
     	<batch:split id="split1" task-executor="taskExecutor" next="mapIds">
 	       <batch:flow>
@@ -148,7 +157,10 @@
 		
 		<batch:step id="clusterFile" parent="clusterParent" next="createInteractomes"/>
 		
-		<batch:step id="createInteractomes" parent="interactomesParent"/>
+		<batch:step id="createInteractomes" parent="interactomesParent" next="mitabindexer"/>
+		
+		<batch:step id="mitabindexer" parent="indexerParent"/>
+		
     </batch:job>
 
     <!-- Tasklets -->
@@ -237,6 +249,8 @@
 		<property name="path" value="${path}data/" />
 		<property name="organisms" value="${interactome.species}" />
 	</bean>
+	
+	<bean id="miTabIndexerTask" class="mpg.biochem.de.interbase.task.MiTabIndexerTask" scope="step"/>
 	
 	<!-- Readers -->
 	

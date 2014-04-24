@@ -16,7 +16,6 @@ import mpg.biochem.de.interbase.service.UniProtIndex;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
-import org.apache.jcs.access.exception.CacheException;
 import org.apache.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.queryParser.ParseException;
@@ -63,7 +62,7 @@ public class InterBaseProcessor implements ItemProcessor<BinaryInteraction, Bina
 		return interaction;
 	}
 	
-	public void processInteractor(Interactor interactor) throws MalformedURLException, SAXException, IOException, ParseException, InterruptedException, CacheException {
+	public void processInteractor(Interactor interactor) throws MalformedURLException, SAXException, IOException, ParseException, InterruptedException {
 		
 		//In case is a molecule interacts with itself
 		if(interactor != null && interactor.getIdentifiers().size() > 0){
