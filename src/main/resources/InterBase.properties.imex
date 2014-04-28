@@ -14,7 +14,8 @@ psicquic.max.attempts=3
 psicquic.waiting.interval=200
 psicquic.query=pubid:imex
 #psicquic.query=*
-services.to.ignore=GeneMANIA
+services.to.ignore=BioGrid,GeneMANIA,APID,BIND,iRefIndex,Reactome-FIs,Spike,BAR,MatrixDB,Reactome,STRING,VirHostNet,BindingDB,ChEMBL,Interoporc,MPIDB,TopFind,HPIDb,mentha
+#services.to.ignore=GeneMANIA
 #services.to.ignore=GeneMANIA,APID,BIND,DIP,InnateDB,iRefIndex,MINT,Reactome-FIs,Spike,BAR,BioGrid,I2D-IMEx,MatrixDB,\
 #MolCon,Reactome,STRING,VirHostNet,BindingDB,ChEMBL,InnateDB-IMEx,Interoporc,MBInfo,MPIDB,TopFind,bhf-ucl,HPIDb,mentha,UniProt
 #IMEX Partners do not need to be analized
@@ -32,6 +33,6 @@ index.create=true
 #Interactomes to generate
 interactome.species=9606,7227,10090,10114,7955,3702,6239,559292,284812,83333
 #Solr server path to index files
-solr.path = http://dachstein:8080/solr/core1/
+solr.path = http://dachstein:8080/solr/core0/
 #psicquic.solr path
 psicquic.solr = psicquic-solr-ws-1.3.11/indexMitabWithSolrUrl.sh
